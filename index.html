@@ -3,18 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Finance Sekar</title>
+    <title>Sekaruang</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f4f7f4; }
-        .apple-shadow { box-shadow: 0 4px 20px rgba(0,0,0,0.03); }
-        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade { animation: fadeIn 0.4s ease-out forwards; }
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
     </style>
 </head>
 <body>
@@ -24,250 +20,152 @@
         const { useState, useEffect, useMemo } = React;
 
         // === KONFIGURASI ===
-        // TEMPELKAN URL GOOGLE SCRIPT KAMU DI ANTARA TANDA KUTIP DI BAWAH INI:
-        const SCRIPT_URL = "GANTI_DENGAN_URL_SCRIPT_KAMU";
+        // TEMPELKAN URL GOOGLE SCRIPT ANDA DI BAWAH INI:
+        const SCRIPT_URL = "URL_GOOGLE_SCRIPT_ANDA_DI_SINI";
 
         function App() {
-            const [activeTab, setActiveTab] = useState('dashboard');
-            const [transactions, setTransactions] = useState([]);
+            const [data, setData] = useState([]);
             const [loading, setLoading] = useState(true);
-            const [notif, setNotif] = useState(null);
-
-            // Ambil Data dari Google Sheets
-            const fetchData = async () => {
-                setLoading(true);
-                try {
-                    const response = await fetch(SCRIPT_URL);
-                    const data = await response.json();
-                    setTransactions(data.reverse());
-                } catch (e) {
-                    console.error("Gagal ambil data", e);
-                }
-                setLoading(false);
-            };
+            const [view, setView] = useState('dashboard');
+            const [formData, setFormData] = useState({ jenis: 'Pemasukan', kategori: 'Penjualan', jumlah: '', keterangan: '', tanggal: new Date().toISOString().split('T')[0] });
 
             useEffect(() => { fetchData(); }, []);
 
-            const showNotif = (msg) => {
-                setNotif(msg);
-                setTimeout(() => setNotif(null), 3000);
+            const fetchData = async () => {
+                try {
+                    const resp = await fetch(SCRIPT_URL);
+                    const json = await resp.json();
+                    // SORTIR OTOMATIS: Tanggal terbaru di atas
+                    const sortedData = json.data.sort((a, b) => new Date(b.Tanggal) - new Date(a.Tanggal));
+                    setData(sortedData);
+                    setLoading(false);
+                } catch (e) { alert("Gagal ambil data"); }
             };
 
-            // Kirim Data ke Google Sheets
-            const addTransaction = async (formData) => {
-                showNotif("Menyimpan...");
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setLoading(true);
                 try {
                     await fetch(SCRIPT_URL, {
                         method: 'POST',
                         body: JSON.stringify(formData)
                     });
-                    showNotif("Berhasil disimpan!");
-                    fetchData(); // Refresh data
-                    setActiveTab('history');
-                } catch (e) {
-                    showNotif("Gagal simpan data");
-                }
+                    setFormData({ ...formData, jumlah: '', keterangan: '' });
+                    await fetchData();
+                    setView('dashboard');
+                } catch (e) { alert("Gagal simpan"); setLoading(false); }
             };
 
+            const stats = useMemo(() => {
+                return data.reduce((acc, curr) => {
+                    const nominal = parseFloat(curr.Jumlah) || 0;
+                    if (curr.Jenis === 'Pemasukan') acc.masuk += nominal;
+                    else acc.keluar += nominal;
+                    return acc;
+                }, { masuk: 0, keluar: 0 });
+            }, [data]);
+
+            if (loading && data.length === 0) return <div className="flex h-screen items-center justify-center">Memuat...</div>;
+
             return (
-                <div className="min-h-screen max-w-md mx-auto bg-white relative shadow-lg">
+                <div className="max-w-md mx-auto bg-white min-h-screen shadow-lg pb-20">
                     {/* Header */}
-                    <header className="p-6 bg-white sticky top-0 z-10 border-b border-emerald-50 flex justify-between items-center">
-                        <h1 className="text-xl font-bold text-emerald-900">
-                            {activeTab === 'dashboard' ? 'Ringkasan' : 
-                             activeTab === 'input' ? 'Input Data' : 
-                             activeTab === 'history' ? 'Histori' : 'Laba Rugi'}
-                        </h1>
-                        <button onClick={fetchData} className="text-emerald-600">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
-                        </button>
-                    </header>
+                    <div className="p-6 bg-emerald-600 text-white shadow-md">
+                        <h1 className="text-xl font-bold">Sekaruang</h1>
+                        <p className="text-emerald-100 text-sm">Kelola keuangan jadi mudah</p>
+                    </div>
 
-                    {/* Content */}
-                    <main className="p-6 pb-24">
-                        {loading && activeTab !== 'input' ? (
-                            <div className="text-center py-20 text-gray-400">Memuat data...</div>
-                        ) : (
-                            <div className="animate-fade">
-                                {activeTab === 'dashboard' && <Dashboard transactions={transactions} />}
-                                {activeTab === 'input' && <InputForm onAdd={addTransaction} />}
-                                {activeTab === 'history' && <History transactions={transactions} />}
-                                {activeTab === 'pnl' && <PnL transactions={transactions} />}
+                    {view === 'dashboard' ? (
+                        <div className="p-4 space-y-6">
+                            {/* Ringkasan */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
+                                    <p className="text-xs text-emerald-600 font-medium">Pemasukan</p>
+                                    <p className="text-lg font-bold text-emerald-700">Rp {stats.masuk.toLocaleString()}</p>
+                                </div>
+                                <div className="p-4 bg-rose-50 rounded-2xl border border-rose-100">
+                                    <p className="text-xs text-rose-600 font-medium">Pengeluaran</p>
+                                    <p className="text-lg font-bold text-rose-700">Rp {stats.keluar.toLocaleString()}</p>
+                                </div>
                             </div>
-                        )}
-                    </main>
 
-                    {/* Notif */}
-                    {notif && (
-                        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-emerald-800 text-white px-6 py-2 rounded-full text-sm shadow-xl z-50">
-                            {notif}
+                            {/* List Transaksi - Terurut dari yang terbaru */}
+                            <div>
+                                <h3 className="font-bold mb-3 text-slate-700 px-1">Riwayat Terbaru</h3>
+                                <div className="space-y-3">
+                                    {data.map((item, i) => (
+                                        <div key={i} className="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                            <div>
+                                                <p className="font-semibold text-slate-800">{item.Keterangan || item.Kategori}</p>
+                                                <p className="text-[10px] text-slate-400 uppercase tracking-wider">{new Date(item.Tanggal).toLocaleDateString('id-ID', {day:'numeric', month:'short'})} • {item.Kategori}</p>
+                                            </div>
+                                            <p className={`font-bold ${item.Jenis === 'Pemasukan' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                {item.Jenis === 'Pemasukan' ? '+' : '-'} {parseFloat(item.Jumlah).toLocaleString()}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
+                    ) : (
+                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                            <h2 className="text-xl font-bold text-slate-800 mb-4">Tambah Catatan</h2>
+                            
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 uppercase">Tipe</label>
+                                <select className="w-full p-3 mt-1 bg-slate-100 rounded-xl border-none focus:ring-2 focus:ring-emerald-500" 
+                                    value={formData.jenis} onChange={e => setFormData({...formData, jenis: e.target.value, kategori: e.target.value === 'Pemasukan' ? 'Penjualan' : ''})}>
+                                    <option value="Pemasukan">Pemasukan (+)</option>
+                                    <option value="Pengeluaran">Pengeluaran (-)</option>
+                                </select>
+                            </div>
+
+                            {formData.jenis === 'Pemasukan' ? (
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase">Kategori</label>
+                                    <select className="w-full p-3 mt-1 bg-slate-100 rounded-xl border-none focus:ring-2 focus:ring-emerald-500" 
+                                        value={formData.kategori} onChange={e => setFormData({...formData, kategori: e.target.value})}>
+                                        <option value="Penjualan">Penjualan</option>
+                                    </select>
+                                </div>
+                            ) : (
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase">Kategori Pengeluaran</label>
+                                    <input className="w-full p-3 mt-1 bg-slate-100 rounded-xl border-none focus:ring-2 focus:ring-emerald-500" 
+                                        type="text" placeholder="Misal: Listrik, Gaji" required
+                                        value={formData.kategori} onChange={e => setFormData({...formData, kategori: e.target.value})} />
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 uppercase">Nominal (Rp)</label>
+                                <input className="w-full p-3 mt-1 bg-slate-100 rounded-xl border-none focus:ring-2 focus:ring-emerald-500" 
+                                    type="number" placeholder="0" required
+                                    value={formData.jumlah} onChange={e => setFormData({...formData, jumlah: e.target.value})} />
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 uppercase">Catatan</label>
+                                <input className="w-full p-3 mt-1 bg-slate-100 rounded-xl border-none focus:ring-2 focus:ring-emerald-500" 
+                                    type="text" placeholder="Keterangan tambahan"
+                                    value={formData.keterangan} onChange={e => setFormData({...formData, keterangan: e.target.value})} />
+                            </div>
+
+                            <button type="submit" disabled={loading} className="w-full p-4 bg-emerald-600 text-white rounded-2xl font-bold shadow-lg shadow-emerald-200 active:scale-95 transition-all">
+                                {loading ? 'Memproses...' : 'Simpan Transaksi'}
+                            </button>
+                            <button type="button" onClick={() => setView('dashboard')} className="w-full p-2 text-slate-400 text-sm">Batal</button>
+                        </form>
                     )}
 
-                    {/* Bottom Nav */}
-                    <nav className="fixed bottom-0 w-full max-w-md bg-white border-t border-gray-100 flex justify-around py-3 safe-bottom apple-shadow">
-                        <NavBtn active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} label="Home" icon="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                        <NavBtn active={activeTab === 'input'} onClick={() => setActiveTab('input')} label="Input" icon="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        <NavBtn active={activeTab === 'history'} onClick={() => setActiveTab('history')} label="Histori" icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        <NavBtn active={activeTab === 'pnl'} onClick={() => setActiveTab('pnl')} label="Laba Rugi" icon="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </nav>
-                </div>
-            );
-        }
-
-        // Sub-Komponen
-        function NavBtn({ active, onClick, label, icon }) {
-            return (
-                <button onClick={onClick} className={`flex flex-col items-center ${active ? 'text-emerald-600' : 'text-gray-400'}`}>
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={icon}></path></svg>
-                    <span className="text-[10px] mt-1 font-medium">{label}</span>
-                </button>
-            );
-        }
-
-        function Dashboard({ transactions }) {
-            const stats = useMemo(() => {
-                let tunai = 0, qris = 0, inTotal = 0, outTotal = 0;
-                transactions.forEach(t => {
-                    const amt = parseInt(t.amount) || 0;
-                    if (t.type === 'income') {
-                        inTotal += amt;
-                        t.paymentMethod === 'Tunai' ? tunai += amt : qris += amt;
-                    } else {
-                        outTotal += amt;
-                        t.paymentMethod === 'Tunai' ? tunai -= amt : qris -= amt;
-                    }
-                });
-                return { tunai, qris, total: tunai + qris, inTotal, outTotal };
-            }, [transactions]);
-
-            const fmt = (v) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(v);
-
-            return (
-                <div className="space-y-6">
-                    <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 p-6 rounded-[2rem] text-white apple-shadow">
-                        <p className="text-emerald-100 text-sm">Total Saldo</p>
-                        <h2 className="text-3xl font-bold mt-1">{fmt(stats.total)}</h2>
-                        <div className="flex mt-6 gap-4 border-t border-emerald-400/30 pt-4">
-                            <div><p className="text-[10px] opacity-80 uppercase">Tunai</p><p className="font-semibold">{fmt(stats.tunai)}</p></div>
-                            <div><p className="text-[10px] opacity-80 uppercase">QRIS</p><p className="font-semibold">{fmt(stats.qris)}</p></div>
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm">
-                            <p className="text-gray-400 text-[10px] uppercase font-bold">Pendapatan</p>
-                            <p className="text-emerald-600 font-bold mt-1">{fmt(stats.inTotal)}</p>
-                        </div>
-                        <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm">
-                            <p className="text-gray-400 text-[10px] uppercase font-bold">Belanja</p>
-                            <p className="text-red-500 font-bold mt-1">{fmt(stats.outTotal)}</p>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        function InputForm({ onAdd }) {
-            const [f, setF] = useState({ date: new Date().toISOString().split('T')[0], type: 'income', paymentMethod: 'Tunai', amount: '', description: '', category: 'Pendapatan', dept: 'BAR', bebanType: '-' });
-
-            return (
-                <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); onAdd(f); }}>
-                    <div className="flex bg-gray-100 p-1 rounded-full mb-4">
-                        <button type="button" onClick={() => setF({...f, type: 'income', category: 'Pendapatan', dept: '-'})} className={`flex-1 py-2 rounded-full text-sm font-bold ${f.type === 'income' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500'}`}>Pendapatan</button>
-                        <button type="button" onClick={() => setF({...f, type: 'expense', category: 'COGS', dept: 'BAR'})} className={`flex-1 py-2 rounded-full text-sm font-bold ${f.type === 'expense' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500'}`}>Pengeluaran</button>
-                    </div>
-
-                    <div className="space-y-4 bg-white">
-                        <input type="date" value={f.date} onChange={e => setF({...f, date: e.target.value})} className="w-full p-4 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-emerald-500" />
-                        
-                        {f.type === 'expense' && (
-                            <div className="grid grid-cols-2 gap-2">
-                                <select value={f.category} onChange={e => setF({...f, category: e.target.value})} className="p-4 rounded-2xl bg-gray-50 border-none outline-none">
-                                    <option value="COGS">COGS</option>
-                                    <option value="BEBAN">BEBAN</option>
-                                </select>
-                                <select value={f.dept} onChange={e => setF({...f, dept: e.target.value})} className="p-4 rounded-2xl bg-gray-50 border-none outline-none">
-                                    <option value="BAR">BAR</option>
-                                    <option value="KITCHEN">KITCHEN</option>
-                                    {f.category === 'BEBAN' && <option value="OPERATIONS">OPERATIONS</option>}
-                                </select>
-                            </div>
-                        )}
-
-                        {f.category === 'BEBAN' && (
-                            <select value={f.bebanType} onChange={e => setF({...f, bebanType: e.target.value})} className="w-full p-4 rounded-2xl bg-gray-50 border-none outline-none">
-                                <option value="Gaji">Gaji</option>
-                                <option value="Sewa">Sewa</option>
-                                <option value="Listrik & Air">Listrik & Air</option>
-                                <option value="Lainnya">Lainnya</option>
-                            </select>
-                        )}
-
-                        <div className="flex gap-2">
-                            {['Tunai', 'QRIS'].map(m => (
-                                <button key={m} type="button" onClick={() => setF({...f, paymentMethod: m})} className={`flex-1 py-3 rounded-2xl border ${f.paymentMethod === m ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'border-gray-100 text-gray-400'}`}>{m}</button>
-                            ))}
-                        </div>
-
-                        <input type="number" placeholder="Nominal Rp" value={f.amount} onChange={e => setF({...f, amount: e.target.value})} className="w-full p-4 rounded-2xl bg-gray-50 border-none outline-none text-lg font-bold" required />
-                        <input type="text" placeholder="Keterangan" value={f.description} onChange={e => setF({...f, description: e.target.value})} className="w-full p-4 rounded-2xl bg-gray-50 border-none outline-none" required />
-                        
-                        <button type="submit" className={`w-full py-4 rounded-2xl text-white font-bold shadow-lg ${f.type === 'income' ? 'bg-emerald-600' : 'bg-red-600'}`}>Simpan Transaksi</button>
-                    </div>
-                </form>
-            );
-        }
-
-        function History({ transactions }) {
-            return (
-                <div className="space-y-3">
-                    {transactions.map((t, i) => (
-                        <div key={i} className="bg-white p-4 rounded-2xl border border-gray-100 flex justify-between items-center">
-                            <div>
-                                <p className="font-bold text-gray-800 text-sm">{t.description}</p>
-                                <p className="text-[10px] text-gray-400">{t.date} • {t.category} • {t.paymentMethod}</p>
-                            </div>
-                            <p className={`font-bold ${t.type === 'income' ? 'text-emerald-600' : 'text-gray-800'}`}>
-                                {t.type === 'income' ? '+' : '-'}{parseInt(t.amount).toLocaleString()}
-                            </p>
-                        </div>
-                    ))}
-                </div>
-            );
-        }
-
-        function PnL({ transactions }) {
-            const p = useMemo(() => {
-                let inc = 0, cBar = 0, cKit = 0, beb = 0;
-                transactions.forEach(t => {
-                    const a = parseInt(t.amount) || 0;
-                    if (t.type === 'income') inc += a;
-                    else if (t.category === 'COGS' && t.dept === 'BAR') cBar += a;
-                    else if (t.category === 'COGS' && t.dept === 'KITCHEN') cKit += a;
-                    else if (t.category === 'BEBAN') beb += a;
-                });
-                return { inc, cBar, cKit, beb, kotor: inc - (cBar + cKit), bersih: inc - (cBar + cKit + beb) };
-            }, [transactions]);
-
-            const Line = ({ l, v, b }) => (
-                <div className={`flex justify-between py-2 ${b ? 'font-bold border-t border-gray-100 mt-2' : 'text-gray-600 text-sm'}`}>
-                    <span>{l}</span><span>{v.toLocaleString()}</span>
-                </div>
-            );
-
-            return (
-                <div className="bg-white p-6 rounded-[2rem] border border-gray-100 apple-shadow">
-                    <Line l="Total Pendapatan" v={p.inc} b />
-                    <div className="pl-4 py-2 opacity-70">
-                        <Line l="COGS Bar" v={p.cBar} />
-                        <Line l="COGS Kitchen" v={p.cKit} />
-                    </div>
-                    <Line l="LABA KOTOR" v={p.kotor} b />
-                    <div className="pl-4 py-2 opacity-70">
-                        <Line l="Total Beban" v={p.beb} />
-                    </div>
-                    <div className={`flex justify-between p-4 rounded-2xl mt-4 text-white ${p.bersih >= 0 ? 'bg-emerald-600' : 'bg-red-500'}`}>
-                        <span className="font-bold">LABA BERSIH</span><span className="font-bold">{p.bersih.toLocaleString()}</span>
+                    {/* Navigasi Bawah */}
+                    <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/80 backdrop-blur-md border-t border-slate-100 flex justify-around p-3">
+                        <button onClick={() => setView('dashboard')} className={`p-2 px-6 rounded-xl transition-all ${view === 'dashboard' ? 'bg-emerald-100 text-emerald-700' : 'text-slate-400'}`}>
+                            🏠 Dashboard
+                        </button>
+                        <button onClick={() => setView('form')} className="p-2 px-6 bg-emerald-600 text-white rounded-xl shadow-md font-bold">
+                            + Tambah
+                        </button>
                     </div>
                 </div>
             );
